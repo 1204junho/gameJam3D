@@ -4,18 +4,31 @@ using UnityEngine;
 
 public class Player : MonoBehaviour
 {
-    Rigidbody rigid;
     public Transform cam;
-    float heightRate;
-    RaycastHit hit;
-    GameObject seeObject, holdObject;
+    public GameManager GM;
+    public AudioSource[] sounds;
+    int Money;
+    public int money {
+        get { return Money; }
+        set {
+            if (Money < 2000 && value >= 2000)
+                sounds[0].Play();
+            else if(Money < 5000 && value >= 5000)
+                sounds[1].Play();
+            Money = value;
+        }
+    }
+    GameObject seeObject;//, holdObject;
     [SerializeField, Range(0f, 20f)]
     private float speed = 5f;
     [SerializeField,Range(1f, 10f)]
     private float sensitivity_X;
     [SerializeField, Range(1f, 10f)]
     private float sensitivity_Y;
-    // Start is called before the first frame update
+    float heightRate;
+    public bool isHide;
+    Rigidbody rigid;
+    RaycastHit hit;
     void Start()
     {
         sensitivity_X = sensitivity_Y = 5;
@@ -34,7 +47,28 @@ public class Player : MonoBehaviour
         }
         cam.localPosition = Vector3.up;
     }
-    // Update is called once per frame
+    IEnumerator MakeMoney(float time)
+    {
+        sounds[2].Play();
+        while (time > 0)
+        {
+            time -= Time.deltaTime;
+            yield return null;
+            if (!Input.GetMouseButton(0))
+                yield break;
+        }
+        if (Random.value > 0.5f)
+        {
+            sounds[3].Play();
+            money += Random.Range(5, 21) * 100;
+            GM.MoneyChange(money);
+        }
+        else
+        {
+            sounds[4].Play();
+            StartCoroutine(GM.ShowScript("Fail"));
+        }
+    }
     void Update()
     {
         if (Physics.Raycast(cam.position, cam.TransformDirection(Vector3.forward), out hit, 10f))
@@ -52,10 +86,14 @@ public class Player : MonoBehaviour
                     seeObject = hit.collider.gameObject;
                     seeObject.GetComponent<Outline>().OutlineWidth = 10f;
                 }
+                
                 if (Input.GetMouseButtonDown(0))
                 {
-                    seeObject.GetComponent<Rigidbody>().velocity = transform.rotation * Vector3.forward * 20;
-                    StartCoroutine(CamShake(1));
+                    if (seeObject.name == "MoneyMaker")
+                        StartCoroutine(MakeMoney(1));
+                    else if(seeObject.name == "HidePlace")
+                        isHide = true;
+                    //StartCoroutine(CamShake(1));
                 }
             }
         }
@@ -66,6 +104,7 @@ public class Player : MonoBehaviour
                 seeObject = null;
             }
         }
+        /*
         if (Input.GetMouseButtonDown(1))
         {
             if (holdObject == null) {  
@@ -81,6 +120,7 @@ public class Player : MonoBehaviour
                 } 
         }
         if (holdObject != null) holdObject.transform.position = transform.position + cam.rotation * Vector3.forward * 1.5f + Vector3.up;
+        */
         heightRate -= Input.GetAxis("Mouse Y")* sensitivity_Y;
         if (heightRate > 45f) heightRate = 45f;
         else if (heightRate < -75f) heightRate = -75f;
