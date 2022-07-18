@@ -8,21 +8,19 @@ public class Enemy : MonoBehaviour
     public Transform[] movePoint;
     public Player player;
     public Light enemySight;
-    [Range(0, 5f)]
+    [Range(0, .5f)]
     public float delayTime;
     [Range(5f,15f)]
     public float range;
-    [SerializeField]
-    bool isTrace;
-    WaitForSeconds delay, oneSec;
-    NavMeshAgent navi;
+    public bool isTrace;
+    WaitForSeconds delay;
+    public NavMeshAgent navi;
     
     // Start is called before the first frame update
     
     void Start()
     {
-        delay = new WaitForSeconds(delayTime);
-        oneSec = new WaitForSeconds(1f);
+        delay = new(delayTime);
         enemySight.range = range * 1.75f;
         navi = GetComponent<NavMeshAgent>();
         StartCoroutine(ChangeDestination());
@@ -34,42 +32,25 @@ public class Enemy : MonoBehaviour
         navi.SetDestination(movePoint[i].position);
         while (true)
         {
-            if ((movePoint[i].position - transform.position).magnitude < 0.5f)
+            if (isTrace)
             {
-                i = ++i % movePoint.Length;
-                navi.SetDestination(movePoint[i].position);
+                navi.SetDestination(player.transform.position);
+                if (player.isHide && !isPlayerClose) { 
+                    isTrace = false; 
+                    navi.SetDestination(movePoint[i].position);
+                }
             }
+            else
+            {
+                if ((movePoint[i].position - transform.position).magnitude < 2f)
+                {
+                    i = ++i % movePoint.Length;
+                    navi.SetDestination(movePoint[i].position);
+                }
+                if (!player.isHide && isPlayerClose) isTrace = true;
+            }
+
             yield return delay;
-            
         }
-    }
-    IEnumerator TimeCheck()
-    {
-        StopCoroutine(ChangeDestination());
-        isTrace = true;
-        int time = 0;
-        while (time < 2)
-        {
-            if (!player.isHide) time = 0;
-            Debug.Log(time);
-            yield return oneSec;
-            time++;
-        }
-        StartCoroutine(StopTrase());
-    }
-    IEnumerator StopTrase()
-    {
-        navi.isStopped = true;
-        isTrace = false;
-        enemySight.color = Color.cyan;
-        yield return oneSec;
-        navi.isStopped = false;
-        enemySight.color = Color.red;
-        StartCoroutine(ChangeDestination());
-    }
-    private void Update()
-    {
-        if (isTrace) navi.SetDestination(player.transform.position);
-        else if (isPlayerClose && !player.isHide) StartCoroutine(TimeCheck());
     }
 }
