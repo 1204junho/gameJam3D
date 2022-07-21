@@ -2,59 +2,177 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 using TMPro;
 
 public class GameManager : MonoBehaviour
 {
     public AudioSource[] sounds;
-    public TMP_Text moneyText;
-    public TMP_Text script;
+    public TMP_Text moneyText, script, atmMoneyText;
+    public TMP_Text[] coinTexts;
     public Image batteryUI, drinkUI, buffUI, makeMoneyUI;
     public Slider[] sensitivitySlider;
-    public GameObject phone;
+    public GameObject phone, PlayerHideUI,gameOverScreen,ATM;
+    public GameObject[] ATMUI;
     public Gradient batteryState;
     public Light flashlight;
-    public Enemy enemy;
-    public Player player;
+    Enemy enemy;
+    Player player;
+    public Vector3 playerSpawn, enemySpawn;
     [SerializeField, Range(0, 100)]
-    int battery;
-    int BatteryAmount { 
+    int battery, money, atmAimMoney, atmNowMoney;
+    public int[] coinPrice;
+    int BatteryAmount {
         get { return battery; }
         set { battery = value; batteryUI.fillAmount = (float)value / 100; batteryUI.color = batteryState.Evaluate((float)value / 100); } }
-    int Money;
-    public int money
+    public int Money
     {
-        get { return Money; }
+        get { return money; }
         set
         {
-            if (Money < 2000 && value >= 2000)
+            money = value;
+            moneyText.text = value +"";
+            moneyText.color = value > 2000 ? Color.yellow : Color.red;
+            if(value >= 2000)
             {
-                sounds[0].Play();
-                EnemyEnhance(0);
+                if (value < 5000)
+                    enemy.NowPhase = 1;
+                else 
+                    enemy.NowPhase = 2;
             }
-
-            else if (Money < 5000 && value >= 5000)
-            {
-                sounds[1].Play();
-                EnemyEnhance(1);
-            }
-
-            Money = value;
         }
     }
     [SerializeField]
-    bool hasDrink;
-    public bool HasDrink { get { return hasDrink; } set { hasDrink = value; drinkUI.color = value ? Color.white : Color.gray*0.5f; } }
+    bool hasDrink, isPlayerHide;
+    float leftBuffTime;
+    public bool IsPlayerHide{ get { return isPlayerHide; } set {
+            isPlayerHide = value;
+            PlayerHideUI.SetActive(value);
+            if (value)
+            {
+                player.GetComponent<Collider>().enabled = false;
+                ShowScript("press E to get out", Color.green);
+            }
+            else
+            {
+                player.transform.position += player.transform.rotation * Vector3.forward;
+                player.GetComponent<Collider>().enabled = true;
+                ScriptFlush();
+            }
+        }
+    }
+    public bool HasDrink {
+        get { return hasDrink; }
+        set {
+            hasDrink = value;
+            drinkUI.color = Color.white * (value ? 1f : 0.25f);
+            if (value) sounds[0].Play();
+            else
+            {
+                if (leftBuffTime > 0) StopCoroutine(SpeedBuff());
+                StartCoroutine(SpeedBuff());
+            }
+                
+        }
+    }
+    public int curserLockState { set { Cursor.lockState = (CursorLockMode)value; } }
+    //-----------------------------------------------------------------------------------
     private void Start()
     {
+        Cursor.lockState = CursorLockMode.Locked;
+        Time.timeScale = 1f;
+        enemy = GameObject.Find("Enemy").GetComponent<Enemy>();
+        player = GameObject.Find("Player").GetComponent<Player>();
         StartCoroutine(BatteryDecrease());
-        HasDrink = false;
+        hasDrink = false;
+        drinkUI.color = Color.white * 0.25f;
+        StartCoroutine(RandomCoinPrice());
+        coinPrice = new int[] { Random.Range(300, 1500), Random.Range(300, 1500),Random.Range(300, 1500)};
+    }
+    public void GoTitle()
+    {
+        SceneManager.LoadScene(0);
+    }
+    public void Restart()
+    {
+        SceneManager.LoadScene(1);
+    }
+    IEnumerator RandomCoinPrice()
+    {
+        int i;
+        WaitForSeconds oneMin = new(1f);
+        while(true)
+        {
+            for( i = 0; i < 3; i++)
+            {
+                coinPrice[i] = (int)((Random.value+0.5f) * coinPrice[i]);
+                coinTexts[i].text = coinPrice[i] + "";
+                Debug.Log(i + " : " + coinPrice[i]);
+            }
+            yield return oneMin;
+        }
+    }
+    
+    public void UseATM(int menu)
+    {
+        Cursor.lockState = CursorLockMode.Confined;
+        ATMUI[menu].SetActive(true);
+        switch (menu)
+        {
+            case 1:
+                ATMDeposit();
+            break;
+            default:
+                break;
+        }
+        
+    }
+    public void ATMDeposit()
+    {
+        if (Money <= 2000)
+            ShowScript("you dont have enough money", Color.red, 1f);
+        else
+        {
+            atmNowMoney += Money - 2000;
+            Money = 2000;
+            atmMoneyText.text = atmNowMoney + " / " + atmAimMoney;
+            if (atmNowMoney > atmAimMoney) Destroy(ATM);
+        }
+        
+    }
+    public void UseVending(Vending_machine mach)
+    {
+        if (mach.price < Money)
+        {
+            Money -= mach.price;
+            mach.DropItem();
+        }
+        else
+            ShowScript("you dont have enough money",Color.red,1f);
+            
     }
     public void Phone()
     {
         phone.SetActive(!phone.activeSelf);
         Time.timeScale = phone.activeSelf ? 0f : 1f;
         Cursor.lockState = phone.activeSelf ? CursorLockMode.Confined : CursorLockMode.Locked;
+    }
+    public void EnemyHitPlayer()
+    {
+        if (Money <= 2000)
+        {
+            gameOverScreen.SetActive(true);
+            Time.timeScale = 0f;
+            Cursor.lockState = CursorLockMode.None;
+        }
+        else
+        {
+            Money = (int)(0.85f * Money);
+            player.transform.position = playerSpawn;
+            enemy.transform.position = enemySpawn;
+            if(IsPlayerHide)
+                IsPlayerHide = false;
+        }
     }
     public void ChangeSensitivity(int num)
     {
@@ -82,8 +200,7 @@ public class GameManager : MonoBehaviour
         if (Random.value > 0.5f)
         {
             sounds[3].Play();
-            money += Random.Range(10, 21) * 100;
-            MoneyChange(money);
+            Money += Random.Range(10, 21) * 100;
         }
         else
         {
@@ -91,32 +208,19 @@ public class GameManager : MonoBehaviour
             ShowScript("Fail", Color.red, 1f);
         }
     }
-    public IEnumerator SpeedBuff(float dur)
+    public IEnumerator SpeedBuff()
     {
-        HasDrink = false;
-        float nowTime = 0;
+        leftBuffTime = 3;
+        sounds[1].Play();
         player.speed += 10;
-        while (dur > nowTime) {
-            nowTime += Time.deltaTime;
-            buffUI.fillAmount = 1 - nowTime / dur;
+        while (leftBuffTime > 0) {
+            leftBuffTime -= Time.deltaTime;
+            buffUI.fillAmount = leftBuffTime / 3;
             yield return null;
         }
         player.speed -= 10;
     }
-    public void EnemyEnhance(int phase)
-    {
-        switch (phase)
-        {
-            case 0:
-                enemy.range *= 0.95f;
-                enemy.navi.speed = player.speed;
-                break;
-            case 1:
-                enemy.isTrace = true;
-                enemy.navi.speed = player.speed * 1.1f;
-                break;
-        }
-    }
+    
     IEnumerator BatteryDecrease()
     {
         WaitForSeconds oneSec = new(1f);
@@ -135,20 +239,22 @@ public class GameManager : MonoBehaviour
     {
         BatteryAmount = (BatteryAmount + amount > 100) ? 100 : BatteryAmount + amount;
     }
-    public void MoneyChange(int money)
+    void ScriptFlush(string saying = null)
     {
-        moneyText.text = money+" won";
-        moneyText.color = money > 2000 ? Color.yellow : Color.red;
+        if(saying == null || script.text == saying)
+            script.text = "";
     }
-    public void ScriptFlush()
+    IEnumerator ScriptFlushDelay(float time, string saying = null)
     {
-        script.text = "";
+        yield return new WaitForSeconds(time);
+        if (saying == null || script.text == saying)
+            script.text = "";
     }
     public void ShowScript(string saying, Color textColor, float time = 0f)
     {
         script.text = saying;
         script.color = textColor;
-        if(time > 0)
-            Invoke("ScriptFlush", time);
+        if (time > 0.1f)
+            StartCoroutine(ScriptFlushDelay(time,saying));
     }
 }

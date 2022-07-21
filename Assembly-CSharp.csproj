@@ -57,7 +57,10 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\QuickOutline\Scripts\Outline.cs" />
+    <Compile Include="Assets\TitleManager.cs" />
     <Compile Include="Assets\Enemy.cs" />
+    <Compile Include="Assets\GameOverScreen.cs" />
+    <Compile Include="Assets\Vending_machine.cs" />
     <Compile Include="Assets\Enviroment\enviroment\Office building\scripts\evelator_controll.cs" />
     <Compile Include="Assets\Player.cs" />
     <Compile Include="Assets\Enviroment\enviroment\Office building\scripts\pass_on_parent.cs" />
